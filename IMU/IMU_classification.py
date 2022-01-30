@@ -15,9 +15,23 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 
 # %% Retrieve IMU Data
-# Data Format -> GyroX, GyroY, GyroZ, AccX, AccY, AccZ
+'''
+Data Format -> [GyroX, GyroY, GyroZ, AccX, AccY, AccZ]
+'''
 
 def process_data(filename):
+    '''
+    Helper function that helps transform IMU data into workable arrays.
+    
+    Parameters
+    --------------------
+        filename       -- string, name of data file
+    
+    Returns
+    --------------------
+        lines          -- numpy array, (99, 6) array of IMU data
+    '''
+
     with open(filename) as f:
         lines = f.readlines()
     
@@ -29,6 +43,7 @@ def process_data(filename):
     
     return np.array(lines)
 
+# Gather training data
 test_idle1 = process_data("test_idle1.txt")
 test_idle2 = process_data("test_idle2.txt")
 test_idle3 = process_data("test_idle3.txt")
@@ -45,49 +60,39 @@ rotation1 = process_data("rotation1.txt")
 rotation2 = process_data("rotation2.txt")
 rotation3 = process_data("rotation3.txt")
 
-# %% Test Cell
-arr = np.reshape(np.arange(9), (3, 3))
-tester = forward_push3
-# tester = test_idle3
-print(tester.mean(axis=0, keepdims=True))
-print(tester.max(axis=0, keepdims=True))
+# %% Characterizing Idle v. Non-idle
+threshold = 0.25 # Idle classification threshold
+gestures = [0, 1] # List of classes, 0 -> Idle, 1 -> Non-Idle
 
-# %% Part (2) -> Idle v. Non-idle
-threshold = 0.25 # Idle threshold
-
-gestures = [0, 1] # 0 -> Idle, 1 -> Nonidle
+# Create the validation dataset
 train_idle_data_x = [test_idle1, test_idle2, test_idle3,
                    test_nonidle1, test_nonidle2, test_nonidle3]
 train_idle_data_y = [0, 0, 0, 1, 1, 1]
 train_idle_data_pred = []
 
-
+# N.B. For simple classifier, no training, just test directly
 for data in train_idle_data_x:
-    # Compare AccX to see if we're idle or not
-    val = data.max(axis=0, keepdims=True)[0, 3]
-    
+    val = data.max(axis=0, keepdims=True)[0, 3] # Utilize AccX for comparison
     pred = 1 if (val > threshold) else 0
     train_idle_data_pred.append(pred)
-    pass
 
 print("Comparing pred v. truth for idle classifications!")
-print(train_idle_data_y)
-print(train_idle_data_pred)
 print("Error:", str(np.mean(np.array(train_idle_data_y) - np.array(train_idle_data_pred))))
 
-# %% Part (3) -> Differentiate between (push, lift) & idle
+# %% Characterizing [Forwards Push, Upwards Lift, Idle]
 clf = DecisionTreeClassifier(random_state=0)
-gestures_part3 = [0, 1, 2] # 0 -> Idle, 1 -> Forward push, 2 -> Upward lift
+gestures.append(2) # Add 2 -> Upwards lift, to our list of classes
+
+# Create our training dataset
 X = np.array([test_idle1, test_idle2, test_idle3,
               forward_push1, forward_push2, forward_push3,
               upward_lift1, upward_lift2, upward_lift3])
-y = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
+y = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2]) # Ground Truths
 clf.fit(np.reshape(X, (X.shape[0], -1)), y)
-
 y = clf.predict(np.reshape(X, (X.shape[0], -1)))
 
 # %% Retrieve Testing Data
-# N.B. Testing is stored
+num_trials = 5
 x1 = process_data("testing-idle.txt")
 x2 = process_data("testing-push.txt")
 x3 = process_data("testing-push1.txt")
@@ -95,23 +100,19 @@ x4 = process_data("testing-lift.txt")
 x5 = process_data("testing-lift1.txt")
 X_test = np.array([x1, x2, x3, x4, x5])
 X_test = np.reshape(X_test, (X_test.shape[0], -1))
-y_test = [0, 1, 1, 2, 2]
-# Decision Tree Classifier has 40% accuracy
-# [idle, push, push, lift, lift]
-# [idle, idle, push, push, idle]
+y_test = [0, 1, 1, 2, 2] # Ground Truths
+
+# Test classifier on testing dataset
 y = clf.predict(X_test)
 err = 0
-num_trials = 5
 for i in range(num_trials):
-    if y[i] != y_test[i]:
-        err += 1
-err /= num_trials
-print("With three actions our error:", str(err))
-# %% Retrieve Rotation Values
+    if (y[i] != y_test[i]): err += 1
+print("With three actions our error:", str(err / num_trials))
+# %% Additionally, Retrieve Rotation Values
 x6 = process_data("testing-rotation1.txt")
 x7 = process_data("testing-rotation2.txt")
 
-# %% Part (4) -> Differentiate between 4 actions (adding rotation)
+# %% Characterizing 4 Actions (Including Rotation)
 X_train = np.array([test_idle1, test_idle2, test_idle3,
               forward_push1, forward_push2, forward_push3,
               upward_lift1, upward_lift2, upward_lift3,
@@ -120,23 +121,20 @@ y_train = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3]) # 3 -> Rotation
 clf.fit(np.reshape(X_train, (X_train.shape[0], -1)), y_train)
 y_train_pred = clf.predict(np.reshape(X_train, (X_train.shape[0], -1)))
 
-# %% Testing from the classifier
+# %% Test Classifier
 X_test1 = np.array([x1, x2, x3, x4, x5, x6, x7])
 X_test1 = np.reshape(X_test1, (X_test1.shape[0], -1))
 y_test = np.array([0, 1, 1, 2, 2, 3, 3])
-
 y_test_pred = clf.predict(X_test1)
 
 final_err = 0
 num_trials1 = y_test.shape[0]
 
 for i in range(num_trials1):
-    if (y_test_pred[i] != y_test[i]):
-        final_err += 1
-final_err /= num_trials1
+    if (y_test_pred[i] != y_test[i]): final_err += 1
+print("With 4 actions, our error is:", str(final_err / num_trials1))
 
-print("With 4 actions, our error is:", str(final_err))
-
+# %% Lab Questions
 '''
 Yes we saw gravity acceleration when idle, as we displayed ~1G when converting
 the raw output to G units.
@@ -162,19 +160,4 @@ series array of all of our accelerometer and gyroscope rate values (6 vals).
 Actions that might be easier include changing our classifier, maybe incorporating
 some sort of measurement on largest deviation between inputs, mean, max, etc.
 '''
-
-
-
-# %%
-num_gestures = 3 # Tune this
-imu_data = None # Training data
-test_data = None # Testing data
-y = None # Actual testing data labels
-model = KMeans(n_clusters=num_gestures,
-               init="k-means++",
-               random_state=0)
-# model.fit(imu_data) # Train the classifier
-# test_labels = model.predict(test_data)
-
-# %% Gather Accuracies
 
