@@ -24,6 +24,8 @@ def on_disconnect(client, userdata, rc):
 def on_message(client, userdata, message):
     print("Received message: " + str(message.payload) + " on topic " +
           message.topic + " with QoS " + str(message.qos))
+    
+    return message.payload
 
 client = mqtt.Client()
 
@@ -37,10 +39,15 @@ print("Subscribing...")
 client.subscribe("team5", qos=1)
 time.sleep(2)
 
+count = 0
 while True:
+    count += 1
+    if (count > 100000): break
     pass
 client.loop_stop()
 client.disconnect()
+
+print("Here is our message: ", str(on_message))
     
     
     
