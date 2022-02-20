@@ -9,11 +9,13 @@ import speech_recognition as sr
 
 r = sr.Recognizer()
 with sr.Microphone() as source:
-    print("Say something!")
+    print("What ingredients would you like to pickup?")
     audio = r.listen(source)
     
 try:
-    print("Sphinx thinks you said " + r.recognize_sphinx(audio))
+    ingredients = r.recognize_sphinx(audio).split()
+    ingredients = ",".join(ingredients)
+    print("You have successfully picked up " + ingredients)
 except sr.UnknownValueError:
     print("Sphinx could not understand audio")
 except sr.RequestError as e:
